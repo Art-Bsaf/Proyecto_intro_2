@@ -1,52 +1,58 @@
 import pygame
-from world import Mapa, TILE_SIZE
+from world import World, TILE_SIZE
 from tiles import CAMINO, MURO, TUNEL, LIANA
+import os
 
-ANCHO_TILES = 20
-ALTO_TILES = 15
+BASE = os.path.dirname(__file__)
 
-def cargar_sprites():
+print("BASE =", BASE)
+print("Contenido de BASE:", os.listdir(BASE))
+print("Contenido de assets:", os.listdir(os.path.join(BASE, "assets")))
+print("Contenido de tiles:", os.listdir(os.path.join(BASE, "assets", "tiles")))
+
+
+def load_sprites():
     sprites = {}
-    sprites[CAMINO] = pygame.image.load(r"assets\tiles\1.png").convert_alpha()
-    sprites[MURO]   = pygame.image.load(r"assets\tiles\7.png").convert_alpha()
-    sprites[TUNEL]  = pygame.image.load(r"assets\tiles\8.png").convert_alpha()
-    sprites[LIANA]  = pygame.image.load(r"assets\Mage-Red\idle\0.png").convert_alpha()
 
-    # opcional: escalar al tamaño definido
-    for key, img in sprites.items():
-        sprites[key] = pygame.transform.scale(img, (TILE_SIZE, TILE_SIZE))
+    path_camino = os.path.join(BASE, "assets", "tiles", "1.png")
+    print("Ruta CAMINO =", path_camino)
+    print("Existe CAMINO? ->", os.path.exists(path_camino))
+
+    sprites[CAMINO] = pygame.image.load(path_camino).convert_alpha()
+    sprites[MURO]   = pygame.image.load(os.path.join(BASE, "assets", "tiles", "7.png")).convert_alpha()
+    sprites[TUNEL]  = pygame.image.load(os.path.join(BASE, "assets", "tiles", "8.png")).convert_alpha()
+    sprites[LIANA]  = pygame.image.load(os.path.join(BASE, "assets", "Mage-Red", "idle", "0.png")).convert_alpha()
+
+    for k, img in sprites.items():
+        sprites[k] = pygame.transform.scale(img, (TILE_SIZE, TILE_SIZE))
 
     return sprites
+
 
 def main():
     pygame.init()
 
-    ancho_px = ANCHO_TILES * TILE_SIZE
-    alto_px = ALTO_TILES * TILE_SIZE
+    world_w = 20
+    world_h = 15
 
-    pantalla = pygame.display.set_mode((ancho_px, alto_px))
-    pygame.display.set_caption("Mapa - Proyecto Intro")
+    screen = pygame.display.set_mode((world_w*TILE_SIZE, world_h*TILE_SIZE))
+    pygame.display.set_caption("Mapa del Proyecto")
 
     clock = pygame.time.Clock()
 
-    # crear mapa
-    mapa = Mapa(ANCHO_TILES, ALTO_TILES)
-    mapa.generar_mapa()
+    world = World(world_w, world_h)
+    world.generate()
 
-    # cargar sprites
-    tile_sprites = cargar_sprites()
+    sprites = load_sprites()
 
-    corriendo = True
-    while corriendo:
+    running = True
+    while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                corriendo = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    corriendo = False
+                running = False
 
-        pantalla.fill((0, 0, 0))
-        mapa.dibujar(pantalla, tile_sprites)
+        screen.fill((0, 0, 0))
+        world.draw(screen, sprites)
         pygame.display.flip()
         clock.tick(60)
 

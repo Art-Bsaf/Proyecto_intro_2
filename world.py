@@ -1,83 +1,72 @@
 import random
 from tiles import Camino, Muro, Tunel, Liana, CAMINO, MURO, TUNEL, LIANA
 
-TILE_SIZE = 32  # ajusta al tamaño de tus sprites
+TILE_SIZE = 32  # ajusta al tamaño real de tus sprites
 
-class Mapa:
-    def __init__(self, ancho, alto):
-        self.ancho = ancho   # en tiles
-        self.alto = alto     # en tiles
-        self.celdas = [[None for _ in range(ancho)] for _ in range(alto)]
-        self.inicio = None
-        self.salida = None
+class World:
+    def __init__(self, width, height):
+        self.width = width      # en tiles
+        self.height = height    # en tiles
+        self.tiles = [[None for _ in range(width)] for _ in range(height)]
+        self.start = None
+        self.end = None
 
-    def dentro_limites(self, x, y):
-        return 0 <= x < self.ancho and 0 <= y < self.alto
+    def inside(self, x, y):
+        return 0 <= x < self.width and 0 <= y < self.height
 
-    def get_casilla(self, x, y):
-        if not self.dentro_limites(x, y):
-            return None
-        return self.celdas[y][x]
+    def set_tile(self, x, y, tile):
+        self.tiles[y][x] = tile
 
-    def set_casilla(self, x, y, casilla):
-        self.celdas[y][x] = casilla
+    def generate(self):
+        # Llenar todo con muros
+        for y in range(self.height):
+            for x in range(self.width):
+                self.set_tile(x, y, Muro(x, y))
 
-    def _llenar_con_muros(self):
-        for y in range(self.alto):
-            for x in range(self.ancho):
-                self.set_casilla(x, y, Muro(x, y))
-
-    def _crear_camino_simple(self):
-        """
-        Crea un camino desde (0,0) hasta (ancho-1, alto-1) moviéndose
-        solo derecha/abajo. Es feo pero funciona: garantiza un camino.
-        """
+        # Crear camino garantizado de (0,0) a (width-1, height-1)
         x, y = 0, 0
-        self.inicio = (x, y)
-        self.set_casilla(x, y, Camino(x, y))
+        self.start = (x, y)
+        self.set_tile(x, y, Camino(x, y))
 
-        while x < self.ancho - 1 or y < self.alto - 1:
-            opciones = []
-            if x < self.ancho - 1:
-                opciones.append("D")
-            if y < self.alto - 1:
-                opciones.append("B")
-            mov = random.choice(opciones)
-            if mov == "D":
+        while x < self.width - 1 or y < self.height - 1:
+            moves = []
+            if x < self.width - 1:
+                moves.append("D")
+            if y < self.height - 1:
+                moves.append("B")
+            move = random.choice(moves)
+            if move == "D":
                 x += 1
             else:
                 y += 1
-            self.set_casilla(x, y, Camino(x, y))
+            self.set_tile(x, y, Camino(x, y))
 
-        self.salida = (x, y)
+        self.end = (x, y)
 
-    def generar_mapa(self):
-        """Llenar todo con muros y luego crear un camino y rellenar el resto al azar."""
-        self._llenar_con_muros()
-        self._crear_camino_simple()
-
-        for y in range(self.alto):
-            for x in range(self.ancho):
-                if (x, y) == self.inicio or (x, y) == self.salida:
+        # Rellenar el resto al azar
+        for y in range(self.height):
+            for x in range(self.width):
+                if (x, y) in (self.start, self.end):
                     continue
-                if isinstance(self.get_casilla(x, y), Camino):
+                if isinstance(self.tiles[y][x], Camino):
                     continue
 
-                tipo = random.choice([CAMINO, MURO, TUNEL, LIANA])
-                if tipo == CAMINO:
-                    self.set_casilla(x, y, Camino(x, y))
-                elif tipo == MURO:
-                    self.set_casilla(x, y, Muro(x, y))
-                elif tipo == TUNEL:
-                    self.set_casilla(x, y, Tunel(x, y))
-                elif tipo == LIANA:
-                    self.set_casilla(x, y, Liana(x, y))
+                t = random.choice([CAMINO, MURO, TUNEL, LIANA])
 
-    def dibujar(self, surface, tile_sprites):
-        import pygame  # evitar dependencia circular
-        for y in range(self.alto):
-            for x in range(self.ancho):
-                casilla = self.get_casilla(x, y)
-                codigo = casilla.get_codigo()
-                imagen = tile_sprites[codigo]
-                surface.blit(imagen, (x * TILE_SIZE, y * TILE_SIZE))
+                if t == CAMINO:
+                    self.set_tile(x, y, Camino(x, y))
+                elif t == MURO:
+                    self.set_tile(x, y, Muro(x, y))
+                elif t == TUNEL:
+                    self.set_tile(x, y, Tunel(x, y))
+                elif t == LIANA:
+                    self.set_tile(x, y, Liana(x, y))
+
+    def draw(self, surface, sprites):
+        import pygame
+        for y in range(self.height):
+            for x in range(self.width):
+                tile = self.tiles[y][x]
+                code = tile.get_codigo()
+                image = sprites[code]
+                surface.blit(image, (x * TILE_SIZE, y * TILE_SIZE))
