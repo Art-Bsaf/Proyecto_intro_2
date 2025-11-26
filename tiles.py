@@ -4,6 +4,7 @@ CAMINO = 0
 MURO = 1
 TUNEL = 2
 LIANA = 3
+SALIDA = 4
 
 class Casilla(ABC):
     def __init__(self, x, y):
@@ -66,3 +67,13 @@ class Liana(Casilla):
 
     def get_codigo(self):
         return LIANA
+
+class Salida(Casilla):
+    def puede_pasar_jugador(self):
+        return True   
+
+    def puede_pasar_enemigo(self):
+        return True   
+
+    def get_codigo(self):
+        return SALIDA

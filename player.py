@@ -1,12 +1,8 @@
 import pygame
-from world import *
+from world import TILE_SIZE
 from constants import *
+import math
 
-ANIM_IDLE = 0
-ANIM_RUN_UP = 1
-ANIM_RUN_DOWN = 2
-ANIM_RUN_LEFT = 3
-ANIM_RUN_RIGHT = 4
 
 class Player:
     def __init__(self, x_tile, y_tile, animation_list, speed=120):
@@ -36,9 +32,16 @@ class Player:
             self.image = self.animation_list[self.action][self.frame_index]
 
     def _update_animation(self):
-        animation_cooldown = 100  # ms entre frames
+        animation_cooldown = 100  # ms
 
         current_time = pygame.time.get_ticks()
+
+        # Si está quieto, solo mira al mouse
+        if self.action == ANIM_IDLE:
+            self.update_idle()
+            return
+
+        # Si está moviéndose, animación normal
         if current_time - self.update_time > animation_cooldown:
             self.frame_index += 1
             self.update_time = current_time
@@ -47,6 +50,17 @@ class Player:
                 self.frame_index = 0
 
             self.image = self.animation_list[self.action][self.frame_index]
+
+
+            # Para animaciones de movimiento, sí avanzamos frames
+            if current_time - self.update_time > animation_cooldown:
+                self.frame_index += 1
+                self.update_time = current_time
+
+                if self.frame_index >= len(self.animation_list[self.action]):
+                    self.frame_index = 0
+
+                self.image = self.animation_list[self.action][self.frame_index]
 
     def handle_input(self, keys):
         vx = 0
@@ -66,6 +80,7 @@ class Player:
         self.vy = vy * self.speed
 
         if vx == 0 and vy == 0:
+            # quieto → estado idle (la anim se maneja en _update_animation)
             self.set_action(ANIM_IDLE)
         elif vy < 0:
             self.set_action(ANIM_RUN_UP)
@@ -98,15 +113,33 @@ class Player:
                 self.py = new_py
                 self.rect.y = int(self.py)
 
-
     def move(self, dt, world):
         # movimiento por píxeles
         self._move_axis(dt, world, "x")
         self._move_axis(dt, world, "y")
-        # animación
+        # animación (incluye mirar al mouse en idle)
         self._update_animation()
 
+    # ----------- MIRAR HACIA EL MOUSE CUANDO ESTÁ IDLE -----------
+    def update_idle(self):
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+        px, py = self.rect.center
+
+        dx = mouse_x - px
+        dy = mouse_y - py
+
+        # Determina si el movimiento es más horizontal o vertical
+        if abs(dx) > abs(dy):  # mirar izquierda/derecha
+            if dx > 0:
+                self.image = self.animation_list[ANIM_RUN_RIGHT][0]
+            else:
+                self.image = self.animation_list[ANIM_RUN_LEFT][0]
+        else:  # mirar arriba/abajo
+            if dy > 0:
+                self.image = self.animation_list[ANIM_RUN_DOWN][0]
+            else:
+                self.image = self.animation_list[ANIM_RUN_UP][0]
+
     def draw(self, surface):
-        # centrar el sprite (grande) sobre la hitbox (rect)
         image_rect = self.image.get_rect(center=self.rect.center)
         surface.blit(self.image, image_rect.topleft)

@@ -1,10 +1,25 @@
 SCREEN_WIDTH = 800
 SCREEN_HEIGHT = 600
 
-# mientras más pequeño SCROLL_THRESH → más centrado queda el jugador
-# mientras más grande → más se mueve en pantalla hasta que la cámara lo sigue
 SCROLL_THRESH = 150
 
 FPS = 60
 
 TILE_SIZE = 32
+
+ANIM_IDLE = 0
+ANIM_RUN_UP = 1
+ANIM_RUN_DOWN = 2
+ANIM_RUN_LEFT = 3
+ANIM_RUN_RIGHT = 4
+
+ENEMY_IDLE = 0
+ENEMY_RUN_UP = 1
+ENEMY_RUN_DOWN = 2
+ENEMY_RUN_LEFT = 3
+ENEMY_RUN_RIGHT = 4
+
+ENEMY_SPEED = 85                   # velocidad base
+ENEMY_VISION_RADIUS = 3 * TILE_SIZE  # rango de persecución
+PATROL_RADIUS_TILES = 2           # radio (en tiles) para buscar puntos de patrulla
+ANIM_COOLDOWN = 150

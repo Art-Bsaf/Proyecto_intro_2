@@ -1,80 +1,82 @@
 import pygame
 import os
+import random
+
 from world import *
 from tiles import *
 from player import *
 from constants import *
-
-
-
+from enemy import *
 
 PLAYER_SCALE = 2
 
-BASE = os.path.dirname(__file__)
-
 # ============================================
-# 1) LOAD TILES (ya lo tienes, queda igual)
+# 1) LOAD TILES 
 # ============================================
 def load_tiles():
     sprites = {}
-    sprites[CAMINO] = pygame.image.load(os.path.join(BASE, "assets", "tiles", "1.png")).convert_alpha()
-    sprites[MURO]   = pygame.image.load(os.path.join(BASE, "assets", "tiles", "7.png")).convert_alpha()
-    sprites[TUNEL]  = pygame.image.load(os.path.join(BASE, "assets", "tiles", "8.png")).convert_alpha()
-    sprites[LIANA]  = pygame.image.load(os.path.join(BASE, "assets", "tiles", "0.png")).convert_alpha()
+    # Rutas simples, relativas al proyecto
+    sprites[CAMINO] = pygame.image.load("assets/tiles/1.png").convert_alpha()
+    sprites[MURO]   = pygame.image.load("assets/tiles/7.png").convert_alpha()
+    sprites[TUNEL]  = pygame.image.load("assets/tiles/8.png").convert_alpha()
+    sprites[LIANA]  = pygame.image.load("assets/tiles/0.png").convert_alpha()
+    sprites[SALIDA] = pygame.image.load("assets/tiles/9.png").convert_alpha()
 
     for k, img in sprites.items():
         sprites[k] = pygame.transform.scale(img, (TILE_SIZE, TILE_SIZE))
 
     return sprites
 
-# ============================================
-# 2) LOAD PLAYER ANIMATIONS  (NUEVO - PEGAR AQUÍ)
-# ============================================
-
-def load_animation_folder(subfolder):
-    frames = []
-    i = 0
-    while True:
-        path = os.path.join(BASE, "assets", "Mage-Red", subfolder, f"{i}.png")
-        if not os.path.exists(path):
-            break
-        img = pygame.image.load(path).convert_alpha()
-        
-
-        img = pygame.transform.scale(img, (TILE_SIZE * PLAYER_SCALE, TILE_SIZE * PLAYER_SCALE))
-        frames.append(img)
-        i += 1
-
-    if not frames:
-        raise RuntimeError(f"No se encontraron frames en {subfolder}")
-
-    return frames
-
-def load_player_animations():
+def load_player_animations(folder_name):
     animation_list = []
 
-    # 0 - IDLE
-    idle_frames = load_animation_folder("idle")
-    animation_list.append(idle_frames)
+    anims = [
+        "idle",          # 0
+        "running_up",    # 1
+        "running_down",  # 2
+        "running_left",  # 3
+        "running_right"  # 4
+    ]
 
-    # 1 - RUN UP
-    run_up = load_animation_folder("running_up")
-    animation_list.append(run_up)
+    for anim_name in anims:
+        frames = []
+        for i in range(4):   # 0,1,2,3
+            path = f"assets/{folder_name}/{anim_name}/{i}.png"
+            img = pygame.image.load(path).convert_alpha()
+            img = pygame.transform.scale(
+                img, (TILE_SIZE * PLAYER_SCALE, TILE_SIZE * PLAYER_SCALE)
+            )
+            frames.append(img)
 
-    # 2 - RUN DOWN
-    run_down = load_animation_folder("running_down")
-    animation_list.append(run_down)
-
-    # 3 - RUN LEFT
-    run_left = load_animation_folder("running_left")
-    animation_list.append(run_left)
-
-    # 4 - RUN RIGHT
-    run_right = load_animation_folder("running_right")
-    animation_list.append(run_right)
+        animation_list.append(frames)
 
     return animation_list
 
+
+def load_enemy_animations(folder_name):
+    animation_list = []
+
+    anims = [
+        "idle",          # 0
+        "running_up",    # 1
+        "running_down",  # 2
+        "running_left",  # 3
+        "running_right"  # 4
+    ]
+
+    for anim_name in anims:
+        frames = []
+        for i in range(4):
+            path = f"assets/{folder_name}/{anim_name}/{i}.png"
+            img = pygame.image.load(path).convert_alpha()
+            img = pygame.transform.scale(
+                img, (TILE_SIZE * PLAYER_SCALE, TILE_SIZE * PLAYER_SCALE)
+            )
+            frames.append(img)
+
+        animation_list.append(frames)
+
+    return animation_list
 
 
 # ============================================
@@ -92,7 +94,6 @@ def main():
     render_h = world_h * TILE_SIZE
     render_surface = pygame.Surface((render_w, render_h))
 
-
     pygame.display.set_caption("Proyecto Laberinto")
     
     clock = pygame.time.Clock()
@@ -101,20 +102,36 @@ def main():
     world = World(world_w, world_h)
     world.generate()
 
-    # ----- Tiles y Animaciones -----
+    # ----- Tiles -----
     tile_sprites = load_tiles()
-    player_animations = load_player_animations()
-    
 
+    # ----- Animaciones jugador -----
+    player_animations = load_player_animations("player")
 
-    # ----- Crear jugador (NUEVO) -----
+    # ----- Crear jugador -----
     start_x, start_y = world.start
     player = Player(start_x, start_y, player_animations)
+
+    # ----- Enemigos -----
+    enemy_animations = load_enemy_animations("enemies")
+    enemies = []
+    NUM_ENEMIES = 6
+
+    for _ in range(NUM_ENEMIES):
+        while True:
+            x = random.randrange(world.width)
+            y = random.randrange(world.height)
+            tile = world.tiles[y][x]
+
+            if tile.puede_pasar_enemigo():
+                enemy = Enemy(x, y, enemy_animations, world)
+                enemies.append(enemy)
+                break
 
     # ----- LOOP -----
     running = True
     while running:
-        dt = clock.tick(60) / 1000.0
+        dt = clock.tick(FPS) / 1000.0
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -130,15 +147,19 @@ def main():
         # UPDATE
         player.move(dt, world)
 
+        for enemy in enemies:
+            enemy.update(dt, world, player)
+
         # DRAW en superficie pequeña
         render_surface.fill((0, 0, 0))
         world.draw(render_surface, tile_sprites)
         player.draw(render_surface)
+        for enemy in enemies:
+            enemy.draw(render_surface)
 
-        # ESCALAR A LA PANTALLA
+        # ESCALAR
         scaled = pygame.transform.scale(render_surface, (SCREEN_WIDTH, SCREEN_HEIGHT))
         screen.blit(scaled, (0, 0))
-
         pygame.display.flip()
 
     pygame.quit()
