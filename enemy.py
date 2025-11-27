@@ -2,26 +2,29 @@ import pygame
 import random
 import math
 
-from world import *
+from world import TILE_SIZE
 from constants import *
 
 
 class Enemy:
     def __init__(self, x_tile, y_tile, animation_frames, world):
-        # posición en píxeles
-        self.px = x_tile * TILE_SIZE
-        self.py = y_tile * TILE_SIZE
-
-        self.animation_list = animation_frames   # lista de listas
+        self.animation_list = animation_frames
         self.action = ENEMY_IDLE
         self.frame_index = 0
         self.last_anim_update = pygame.time.get_ticks()
         self.image = self.animation_list[self.action][self.frame_index]
 
-        # hitbox
-        self.rect = pygame.Rect(self.px, self.py, TILE_SIZE, TILE_SIZE)
+        # ---------- CAJA VERDE: COLISIÓN ----------
+        cx = x_tile * TILE_SIZE
+        cy = y_tile * TILE_SIZE
+        self.collision_rect = pygame.Rect(cx, cy, TILE_SIZE, TILE_SIZE)
+        self.px = float(self.collision_rect.x)
+        self.py = float(self.collision_rect.y)
 
-        # movimiento
+        # ---------- CAJA ROJA: HITBOX ----------
+        shrink = int(TILE_SIZE * 0.3)
+        self.hitbox_rect = self.collision_rect.inflate(-shrink, -shrink)
+
         self.vx = 0.0
         self.vy = 0.0
         self.speed = ENEMY_SPEED
@@ -77,8 +80,9 @@ class Enemy:
 
     # ---------- SET VELOCITY HACIA UN PUNTO ----------
     def _set_velocity_towards(self, tx, ty, speed_factor=1.0):
-        dx = tx - self.rect.centerx
-        dy = ty - self.rect.centery
+        # usar centro de collision_rect
+        dx = tx - self.collision_rect.centerx
+        dy = ty - self.collision_rect.centery
         dist_sq = dx * dx + dy * dy
 
         if dist_sq == 0:
@@ -99,7 +103,7 @@ class Enemy:
             self.patrol_index = 0
             return
 
-        cx, cy = self.rect.centerx, self.rect.centery
+        cx, cy = self.collision_rect.centerx, self.collision_rect.centery
         mejor_i = 0
         mejor_d2 = float("inf")
 
@@ -108,7 +112,7 @@ class Enemy:
             py = ty * TILE_SIZE + TILE_SIZE // 2
             dx = px - cx
             dy = py - cy
-            d2 = dx*dx + dy*dy
+            d2 = dx * dx + dy * dy
             if d2 < mejor_d2:
                 mejor_d2 = d2
                 mejor_i = i
@@ -117,15 +121,19 @@ class Enemy:
 
     # ---------- THINK: DECIDIR ESTADO Y TARGET ----------
     def _think(self, player):
-        # Distancia al jugador
-        dx = player.rect.centerx - self.rect.centerx
-        dy = player.rect.centery - self.rect.centery
+        # Distancia al jugador (usar collision_rect del player)
+        dx = player.collision_rect.centerx - self.collision_rect.centerx
+        dy = player.collision_rect.centery - self.collision_rect.centery
         dist_sq = dx * dx + dy * dy
 
         # Si el jugador está dentro de visión -> CHASE
         if dist_sq <= ENEMY_VISION_RADIUS ** 2:
             self.state = "chase"
-            self._set_velocity_towards(player.rect.centerx, player.rect.centery, speed_factor=1.2)
+            self._set_velocity_towards(
+                player.collision_rect.centerx,
+                player.collision_rect.centery,
+                speed_factor=1.2
+            )
             return
 
         # Jugador fuera de visión
@@ -150,8 +158,8 @@ class Enemy:
         tx = tx_tile * TILE_SIZE + TILE_SIZE // 2
         ty = ty_tile * TILE_SIZE + TILE_SIZE // 2
 
-        dx = tx - self.rect.centerx
-        dy = ty - self.rect.centery
+        dx = tx - self.collision_rect.centerx
+        dy = ty - self.collision_rect.centery
         dist_sq = dx * dx + dy * dy
 
         # Si ya está suficientemente cerca del punto -> pasar al siguiente
@@ -173,22 +181,25 @@ class Enemy:
             if self.vx == 0:
                 return
             new_px = self.px + self.vx * dt
-            new_rect = self.rect.copy()
+            new_rect = self.collision_rect.copy()
             new_rect.x = int(new_px)
 
             if world.can_enemy_rect_move(new_rect):
                 self.px = new_px
-                self.rect.x = int(self.px)
-        else:  # "y"
+                self.collision_rect.x = int(self.px)
+        else:
             if self.vy == 0:
                 return
             new_py = self.py + self.vy * dt
-            new_rect = self.rect.copy()
+            new_rect = self.collision_rect.copy()
             new_rect.y = int(new_py)
 
             if world.can_enemy_rect_move(new_rect):
                 self.py = new_py
-                self.rect.y = int(self.py)
+                self.collision_rect.y = int(self.py)
+
+        # roja sigue a verde
+        self.hitbox_rect.center = self.collision_rect.center
 
     # ---------- ANIMACIÓN ----------
     def _update_animation(self):
@@ -222,5 +233,5 @@ class Enemy:
 
     # ---------- DIBUJO ----------
     def draw(self, surface):
-        img_rect = self.image.get_rect(center=self.rect.center)
+        img_rect = self.image.get_rect(midbottom=self.collision_rect.midbottom)
         surface.blit(self.image, img_rect.topleft)
