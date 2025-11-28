@@ -16,9 +16,9 @@ Para ejecutar el juego, necesitas tener instalado **Python 3.x** y la librería 
 
 Asegúrate de clonar el código en tu máquina local:
 
-git clone [TU ENLACE DE GITHUB]
+git clone https://github.com/Art-Bsaf/Proyecto_intro_2.git
 
-cd [NOMBRE DE LA CARPETA DEL PROYECTO]
+cd Proyecto_intro_2
 
 ### 2 Instalar Librería
 Instala Pygame usando pip: pip install pygame
@@ -79,4 +79,4 @@ El juego utiliza un sistema de movimiento basado en tiles con física de colisio
 ---
 
 # Para un análisis técnico completo, incluyendo el Diagrama de Clases UML, consulte el documento adjunto: 
-Documentación de Proyecto Escapa del Laberinto y Cazador.pdf
+[Documentación de Proyecto Escapa del Laberinto y Cazador.pdf](https://github.com/Art-Bsaf/Proyecto_intro_2/blob/main/Documentaci%C3%B3n%20de%20Proyecto%20Escapa%20del%20Laberinto%20y%20Cazador.pdf)
