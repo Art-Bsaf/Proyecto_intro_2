@@ -47,8 +47,16 @@ MAX_ENERGY = ENERGY_FRAMES - 1
 ENERGY_SIZE = 48
 
 # --- SPRINT
-SPRINT_MULT = 1.8            # cuántas veces más rápido corre al sprintar
+SPRINT_MULT = 1.5            # cuántas veces más rápido corre al sprintar
 ENERGY_DRAIN_PER_SEC = 3.0   # cuánta energía se gasta por segundo sprintando
 ENERGY_REGEN_PER_SEC = 0.9   # cuánta energía se regenera por segundo sin sprint
 
 SPRINT_LOCK_TIME = 2.5
+
+# --- TRAMPAS ---
+MAX_TRAPS = 3
+TRAP_COOLDOWN = 5.0       # segundos entre colocar trampas
+ENEMY_RESPAWN_TIME = 10.0 # segundos para que reaparezca un enemigo muerto por trampa
+
+# --- PUNTAJE ---
+SCORE_TRAP_KILL = 50      # puntos por matar un enemigo con trampa (ajusta luego)
