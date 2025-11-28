@@ -231,6 +231,81 @@ class Enemy:
 
         self._update_animation()
 
+        # ---------- MODO CAZADOR: HUIR DEL JUGADOR / IR A LA SALIDA ----------
+
+    def _set_velocity_away_from_player(self, player, speed_factor=2.0):
+        """
+        Dirección contraria al jugador.
+        """
+        dx = self.collision_rect.centerx - player.collision_rect.centerx
+        dy = self.collision_rect.centery - player.collision_rect.centery
+        dist_sq = dx * dx + dy * dy
+
+        if dist_sq == 0:
+            self.vx = 0
+            self.vy = 0
+            return
+
+        dist = math.sqrt(dist_sq)
+        nx = dx / dist
+        ny = dy / dist
+
+        self.vx = nx * self.speed * speed_factor
+        self.vy = ny * self.speed * speed_factor
+
+    def _think_cazador(self, world, player):
+        """
+        Lógica para MODO CAZADOR:
+        - si el jugador está cerca: huir
+        - si está lejos: ir hacia la salida
+        """
+        # distancia al jugador
+        dx = player.collision_rect.centerx - self.collision_rect.centerx
+        dy = player.collision_rect.centery - self.collision_rect.centery
+        dist_sq = dx * dx + dy * dy
+
+        # radio en el que el enemigo se asusta del jugador
+        fear_radius = 5 * TILE_SIZE
+
+        if dist_sq <= fear_radius * fear_radius:
+            # HUIR del jugador (un poco más rápido)
+            self._set_velocity_away_from_player(player, speed_factor=1.1)
+            return
+
+        # Si está lejos del jugador: ir hacia la salida
+        if world.end is not None:
+            ex, ey = world.end
+            tx = ex * TILE_SIZE + TILE_SIZE // 2
+            ty = ey * TILE_SIZE + TILE_SIZE // 2
+            self._set_velocity_towards(tx, ty, speed_factor=0.8)
+        else:
+            # fallback: quedarse quieto
+            self.vx = 0
+            self.vy = 0
+
+    def update_cazador(self, dt, world, player):
+
+        self._think_cazador(world, player)
+        self._move_axis(dt, world, "x")
+        self._move_axis(dt, world, "y")
+
+        # elegir animación según velocidad
+        if self.vx == 0 and self.vy == 0:
+            self.set_action(ENEMY_IDLE)
+        elif abs(self.vy) >= abs(self.vx):
+            if self.vy < 0:
+                self.set_action(ENEMY_RUN_UP)
+            else:
+                self.set_action(ENEMY_RUN_DOWN)
+        else:
+            if self.vx < 0:
+                self.set_action(ENEMY_RUN_LEFT)
+            else:
+                self.set_action(ENEMY_RUN_RIGHT)
+
+        self._update_animation()
+
+
     # ---------- DIBUJO ----------
     def draw(self, surface):
         img_rect = self.image.get_rect(midbottom=self.collision_rect.midbottom)

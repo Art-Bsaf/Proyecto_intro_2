@@ -10,6 +10,11 @@ SCROLL_THRESH = 150
 
 PLAYER_SCALE = 2
 
+SCORES_FILE = "scores_escapa.txt"
+
+WORLD_W = 35
+WORLD_H = 25
+
 # --- ANIMACIONES JUGADOR ---
 ANIM_IDLE = 0
 ANIM_RUN_UP = 1
@@ -32,11 +37,13 @@ ANIM_COOLDOWN = 150
 
 DAMAGE_COOLDOWN = 1.2
 
+NUM_ENEMIES = 6
+
 # --- VIDA (CORAZONES) ---
 HEART_SIZE = 32
 
-HEART_COUNT = 3          # 3 corazones visibles
-HEART_HP = 2             # 2 puntos por corazón (medio = 1)
+HEART_COUNT = 3        
+HEART_HP = 2          
 MAX_HEALTH = HEART_COUNT * HEART_HP    # 6
 
  
@@ -47,16 +54,29 @@ MAX_ENERGY = ENERGY_FRAMES - 1
 ENERGY_SIZE = 48
 
 # --- SPRINT
-SPRINT_MULT = 1.5            # cuántas veces más rápido corre al sprintar
-ENERGY_DRAIN_PER_SEC = 3.0   # cuánta energía se gasta por segundo sprintando
-ENERGY_REGEN_PER_SEC = 0.9   # cuánta energía se regenera por segundo sin sprint
+SPRINT_MULT = 1.5           
+ENERGY_DRAIN_PER_SEC = 3.0  
+ENERGY_REGEN_PER_SEC = 0.9  
 
 SPRINT_LOCK_TIME = 2.5
 
 # --- TRAMPAS ---
 MAX_TRAPS = 3
-TRAP_COOLDOWN = 5.0       # segundos entre colocar trampas
-ENEMY_RESPAWN_TIME = 10.0 # segundos para que reaparezca un enemigo muerto por trampa
+TRAP_COOLDOWN = 5.0      
+ENEMY_RESPAWN_TIME = 10.0
 
 # --- PUNTAJE ---
-SCORE_TRAP_KILL = 50      # puntos por matar un enemigo con trampa (ajusta luego)
+SCORE_TRAP_KILL = 50        
+SCORE_TIME_FACTOR = 1000    
+SCORE_TRAP_USED_PENALTY = 5
+
+# ---------- MODO CAZADOR ----------
+
+CAZADOR_KILL_SCORE = 50      
+
+
+CAZADOR_EXIT_PENALTY = 30    
+
+
+CAZADOR_TIME_LIMIT = 60  
+

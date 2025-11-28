@@ -27,7 +27,6 @@ class World:
     # LABERINTO POR DFS
     # ------------------------------------------------------------
     def _generar_laberinto_dfs(self):
-        # 1. Llenar TODO con muros
         for y in range(self.height):
             for x in range(self.width):
                 self.set_tile(x, y, Muro(x, y))
@@ -70,7 +69,7 @@ class World:
             else:
                 stack.pop()
 
-        # final
+
         ex, ey = self.width - 2, self.height - 2
         self.end = (ex, ey)
         self.set_tile(ex, ey, Camino(ex, ey))
@@ -106,7 +105,6 @@ class World:
     def generate(self):
         self._generar_laberinto_dfs()
 
-        # salida
         ex, ey = self.end
         self.set_tile(ex, ey, Salida(ex, ey))
 
