@@ -2,10 +2,10 @@ import pygame
 import random
 import os
 
-from world import *
-from tiles import *
-from player import *
-from enemy import *
+from world import World
+from tiles import CAMINO, MURO, TUNEL, LIANA, SALIDA, Salida
+from player import Player
+from enemy import Enemy
 from constants import *
 
 
@@ -22,41 +22,47 @@ class Trap:
         )
 
 
-# ---------- GESTIÓN DE SCORES (MODO ESCAPA) ----------
-def load_scores():
+# ---------- GESTIÓN DE SCORES ----------
+def load_scores(mode=None):
+    """Si mode = 'ESCAPA' o 'CAZADOR', devuelve solo esos.
+       Si mode = None → devuelve todos (pero ya no lo usaremos)."""
     scores = []
     if not os.path.exists(SCORES_FILE):
         return scores
 
     with open(SCORES_FILE, "r", encoding="utf-8") as f:
         for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            parts = line.split(";")
+            parts = line.strip().split(";")
             if len(parts) != 6:
                 continue
-            name, mode, score_str, time_str, kills_str, traps_str = parts
+
+            name, m, score, time_s, kills, traps_used = parts
             try:
-                score = int(score_str)
-                time_s = float(time_str)
-                kills = int(kills_str)
-                traps = int(traps_str)
-            except ValueError:
+                score = int(score)
+                time_s = float(time_s)
+                kills = int(kills)
+                traps_used = int(traps_used)
+            except:
                 continue
-            scores.append({
-                "name": name,
-                "mode": mode,
-                "score": score,
-                "time": time_s,
-                "kills": kills,
-                "traps": traps
-            })
+
+            if mode is None or m == mode:
+                scores.append({
+                    "name": name,
+                    "mode": m,
+                    "score": score,
+                    "time": time_s,
+                    "kills": kills,
+                    "traps": traps_used
+                })
+
     return scores
 
 
 def save_score(name, mode, score, elapsed_time, kills, traps_used):
-    scores = load_scores()
+    # cargar solo scores del modo indicado
+    scores = load_scores(mode)
+
+    # agregar el nuevo
     scores.append({
         "name": name,
         "mode": mode,
@@ -66,19 +72,32 @@ def save_score(name, mode, score, elapsed_time, kills, traps_used):
         "traps": traps_used
     })
 
+    # ordenar → top 5 del modo
     scores.sort(key=lambda s: s["score"], reverse=True)
     scores = scores[:5]
 
+    # PERO ahora debemos guardar TODOS los modos, no solo este.
+    # cargamos todos, filtramos los del otro modo y luego reconstruimos.
+    all_scores = load_scores(None)
+
+    # limpiamos los del modo actual
+    all_scores = [s for s in all_scores if s["mode"] != mode]
+
+    # agregamos el top5 del modo actual
+    all_scores.extend(scores)
+
+    # ordenar archivo final (por modo y por score)
     with open(SCORES_FILE, "w", encoding="utf-8") as f:
-        for s in scores:
-            line = f"{s['name']};{s['mode']};{s['score']};{s['time']:.2f};{s['kills']};{s['traps']}\n"
-            f.write(line)
+        for s in all_scores:
+            f.write(f"{s['name']};{s['mode']};{s['score']};"
+                    f"{s['time']:.2f};{s['kills']};{s['traps']}\n")
 
 
 def compute_final_score(elapsed_time, enemies_killed_by_trap, traps_used):
     base_time_score = int(SCORE_TIME_FACTOR / max(elapsed_time, 1.0))
     kills_score = enemies_killed_by_trap * SCORE_TRAP_KILL
     traps_penalty = traps_used * SCORE_TRAP_USED_PENALTY
+
     total = base_time_score + kills_score - traps_penalty
     if total < 0:
         total = 0
@@ -113,8 +132,10 @@ def get_player_name(screen, font):
         txt1 = font.render("Nombre (ENTER para confirmar):", True, (255, 255, 255))
         txt2 = font.render(name, True, (0, 255, 0))
 
-        screen.blit(txt1, (SCREEN_WIDTH // 2 - txt1.get_width() // 2, SCREEN_HEIGHT // 2 - 40))
-        screen.blit(txt2, (SCREEN_WIDTH // 2 - txt2.get_width() // 2, SCREEN_HEIGHT // 2))
+        screen.blit(txt1, (SCREEN_WIDTH // 2 - txt1.get_width() // 2,
+                           SCREEN_HEIGHT // 2 - 40))
+        screen.blit(txt2, (SCREEN_WIDTH // 2 - txt2.get_width() // 2,
+                           SCREEN_HEIGHT // 2))
 
         pygame.display.flip()
         clock.tick(60)
@@ -122,16 +143,18 @@ def get_player_name(screen, font):
     return name.strip()
 
 
-def show_end_screen(screen, font, final_score, elapsed_time, kills, traps_used, win, mode_label):
+def show_end_screen(screen, font, final_score, elapsed_time,
+                    kills, traps_used, win):
     clock = pygame.time.Clock()
 
     if win:
         name = get_player_name(screen, font)
-        save_score(name, mode_label, final_score, elapsed_time, kills, traps_used)
+        save_score(name, "ESCAPA", final_score, elapsed_time, kills, traps_used)
     else:
         name = "-----"
 
-    top_scores = load_scores()
+    top_scores = load_scores("ESCAPA")
+
     showing = True
     while showing:
         for event in pygame.event.get():
@@ -144,7 +167,8 @@ def show_end_screen(screen, font, final_score, elapsed_time, kills, traps_used, 
 
         screen.fill((0, 0, 0))
         y = 40
-        titulo_txt = f"{'VICTORIA' if win else 'DERROTA'} - MODO {mode_label}"
+
+        titulo_txt = "VICTORIA - MODO ESCAPA" if win else "DERROTA - MODO ESCAPA"
         color_titulo = (255, 255, 0) if win else (255, 80, 80)
 
         title = font.render(titulo_txt, True, color_titulo)
@@ -152,34 +176,94 @@ def show_end_screen(screen, font, final_score, elapsed_time, kills, traps_used, 
         y += 40
 
         stats = [
-            f"Jugador: {name if win else '-----'}",
+            f"Jugador: {name}",
             f"Tiempo: {elapsed_time:.1f} s",
             f"Enemigos eliminados con trampas: {kills}",
             f"Trampas usadas: {traps_used}",
             f"Puntaje final: {final_score}",
             "",
-            "TOP 5:"
+            "TOP 5 GLOBAL:"
         ]
-
         for line in stats:
             txt = font.render(line, True, (255, 255, 255))
             screen.blit(txt, (40, y))
             y += 30
 
         for i, s in enumerate(top_scores):
-            line = f"{i+1}. {s['name']} [{s['mode']}]  |  Score: {s['score']}  |  T: {s['time']:.1f}s  |  K: {s['kills']}  |  Traps: {s['traps']}"
-            txt = font.render(line, True, (200, 200, 200))
+            linea = (
+                f"{i+1}. {s['name']} [{s['mode']}]  |  "
+                f"Score: {s['score']}  |  T: {s['time']:.1f}s  |  "
+                f"K: {s['kills']}  |  Traps: {s['traps']}"
+            )
+            txt = font.render(linea, True, (200, 200, 200))
             screen.blit(txt, (60, y))
             y += 24
 
         info = font.render("ENTER o ESC para volver al menú", True, (150, 150, 255))
-        screen.blit(info, (SCREEN_WIDTH // 2 - info.get_width() // 2, SCREEN_HEIGHT - 40))
+        screen.blit(info,
+                    (SCREEN_WIDTH // 2 - info.get_width() // 2,
+                     SCREEN_HEIGHT - 40))
 
         pygame.display.flip()
         clock.tick(60)
 
 
-# ---------- CARGA DE RECURSOS ----------
+def show_cazador_results(screen, font, score, elapsed_time, kills, exits):
+    clock = pygame.time.Clock()
+    running = True
+
+    top_scores = load_scores("CAZADOR")
+
+
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                raise SystemExit
+            if event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_RETURN, pygame.K_ESCAPE):
+                    running = False
+
+        screen.fill((0, 0, 0))
+        y = 40
+
+        title = font.render("FIN - MODO CAZADOR", True, (255, 255, 0))
+        screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, y))
+        y += 40
+
+        lines = [
+            f"Tiempo jugado: {elapsed_time:.1f} s",
+            f"Enemigos atrapados: {kills}",
+            f"Enemigos que alcanzaron la salida: {exits}",
+            f"Puntaje final: {score}",
+            "",
+            "TOP 5 GLOBAL:"
+        ]
+        for line in lines:
+            txt = font.render(line, True, (255, 255, 255))
+            screen.blit(txt, (40, y))
+            y += 30
+
+        for i, s in enumerate(top_scores):
+            linea = (
+                f"{i+1}. {s['name']} [{s['mode']}]  |  "
+                f"Score: {s['score']}  |  T: {s['time']:.1f}s  |  "
+                f"K: {s['kills']}  |  Traps: {s['traps']}"
+            )
+            txt = font.render(linea, True, (200, 200, 200))
+            screen.blit(txt, (60, y))
+            y += 24
+
+        info = font.render("ENTER o ESC para volver al menú", True, (150, 150, 255))
+        screen.blit(info,
+                    (SCREEN_WIDTH // 2 - info.get_width() // 2,
+                     SCREEN_HEIGHT - 40))
+
+        pygame.display.flip()
+        clock.tick(60)
+
+
+# ---------- LOADERS ----------
 def load_tiles():
     sprites = {}
     sprites[CAMINO] = pygame.image.load("assets/tiles/1.png").convert_alpha()
@@ -195,29 +279,51 @@ def load_tiles():
 
 def load_player_animations(folder_name):
     animation_list = []
-    anims = ["idle", "running_up", "running_down", "running_left", "running_right"]
+
+    anims = [
+        "idle",          # 0
+        "running_up",    # 1
+        "running_down",  # 2
+        "running_left",  # 3
+        "running_right"  # 4
+    ]
+
     for anim_name in anims:
         frames = []
         for i in range(4):
             path = f"assets/{folder_name}/{anim_name}/{i}.png"
             img = pygame.image.load(path).convert_alpha()
-            img = pygame.transform.scale(img, (TILE_SIZE * PLAYER_SCALE, TILE_SIZE * PLAYER_SCALE))
+            img = pygame.transform.scale(
+                img, (TILE_SIZE * PLAYER_SCALE, TILE_SIZE * PLAYER_SCALE)
+            )
             frames.append(img)
         animation_list.append(frames)
+
     return animation_list
 
 
 def load_enemy_animations(folder_name):
     animation_list = []
-    anims = ["idle", "running_up", "running_down", "running_left", "running_right"]
+
+    anims = [
+        "idle",
+        "running_up",
+        "running_down",
+        "running_left",
+        "running_right"
+    ]
+
     for anim_name in anims:
         frames = []
         for i in range(4):
             path = f"assets/{folder_name}/{anim_name}/{i}.png"
             img = pygame.image.load(path).convert_alpha()
-            img = pygame.transform.scale(img, (TILE_SIZE * PLAYER_SCALE, TILE_SIZE * PLAYER_SCALE))
+            img = pygame.transform.scale(
+                img, (TILE_SIZE * PLAYER_SCALE, TILE_SIZE * PLAYER_SCALE)
+            )
             frames.append(img)
         animation_list.append(frames)
+
     return animation_list
 
 
@@ -252,33 +358,44 @@ def draw_hearts(screen, hearts_sprites, current_hp):
 
     for i in range(HEART_COUNT):
         heart_hp = current_hp - i * HEART_HP
+
         if heart_hp >= HEART_HP:
             img = hearts_sprites["full"]
         elif heart_hp > 0:
             img = hearts_sprites["half"]
         else:
             img = hearts_sprites["empty"]
+
         screen.blit(img, (x0 + i * spacing, y0))
 
 
 def draw_energy(screen, energy_frames, current_energy):
     pct = current_energy / MAX_ENERGY if MAX_ENERGY > 0 else 0
     idx = int((1 - pct) * (ENERGY_FRAMES - 1))
-    idx = max(0, min(idx, ENERGY_FRAMES - 1))
+
+    if idx < 0:
+        idx = 0
+    if idx >= ENERGY_FRAMES:
+        idx = ENERGY_FRAMES - 1
+
     img = energy_frames[idx]
     x = 10
     y = 10 + img.get_height() + 8
     screen.blit(img, (x, y))
 
 
-def draw_hud(screen, hearts_sprites, energy_frames, player, font, score, elapsed_time):
+def draw_hud(screen, hearts_sprites, energy_frames, player, font,
+             score, elapsed_time):
     draw_hearts(screen, hearts_sprites, player.hp)
     draw_energy(screen, energy_frames, player.energy)
-    txt = font.render(f"Score: {score}  Tiempo: {elapsed_time:.1f}s", True, (255, 255, 255))
+
+    txt = font.render(f"Score: {score}  Tiempo: {elapsed_time:.1f}s",
+                      True, (255, 255, 255))
     screen.blit(txt, (SCREEN_WIDTH - 260, 10))
 
 
-def draw_help_panel(screen, font):
+# ---------- PANELES DE AYUDA ----------
+def draw_help_panel_escapa(screen, font):
     overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 180))
     screen.blit(overlay, (0, 0))
@@ -287,23 +404,67 @@ def draw_help_panel(screen, font):
         "CONTROLES - MODO ESCAPA",
         "",
         "Moverse: W / A / S / D",
-        "Correr: mantener SHIFT (consume energía)",
+        "Correr: SHIFT (consume energía)",
         "Colocar trampa: ESPACIO (máx 3, con cooldown)",
         "",
         "Objetivo:",
-        "- Llegar a la salida evitando a los enemigos.",
-        "- Las trampas matan enemigos y dan puntaje.",
-        "- Si la vida llega a 0, pierdes.",
+        "- Llegar a la salida sin morir.",
+        "- Evitar a los cazadores (enemigos).",
+        "- Usar trampas para eliminarlos y ganar puntos.",
         "",
         "Score final:",
-        "- Depende del tiempo, enemigos eliminados y trampas usadas.",
+        "- Depende del tiempo, enemigos eliminados por trampas",
+        "  y trampas usadas.",
         "",
-        "Pulsa H para cerrar esta ayuda."
+        "Pulsa H para reanudar."
     ]
 
     y = 60
     for line in lines:
-        color = (255, 255, 0) if "CONTROLES" in line or "Objetivo" in line or "Score" in line else (255, 255, 255)
+        if ("CONTROLES" in line or
+                "Objetivo" in line or
+                "Score" in line):
+            color = (255, 255, 0)
+        else:
+            color = (255, 255, 255)
+        txt = font.render(line, True, color)
+        screen.blit(txt, (60, y))
+        y += 28
+
+
+def draw_cazador_help_panel(screen, font):
+    overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 180))
+    screen.blit(overlay, (0, 0))
+
+    lines = [
+        "MODO CAZADOR - CONTROLES Y OBJETIVO",
+        "",
+        "Moverse: W / A / S / D",
+        "Correr: SHIFT (si lo usas, gasta energía igual que en Escapa)",
+        "",
+        "Objetivo:",
+        "- Tienes un tiempo límite.",
+        "- Atrapa la mayor cantidad posible de enemigos.",
+        "- Los enemigos huyen de ti y buscan la salida.",
+        "- Si un enemigo llega a la salida, pierdes puntos.",
+        "",
+        "Puntaje:",
+        "- Cada enemigo atrapado suma CAZADOR_KILL_SCORE.",
+        "- Cada enemigo que alcanza la salida resta CAZADOR_EXIT_PENALTY.",
+        "- Si tu score entra en el Top 5, se actualiza el récord.",
+        "",
+        "Pulsa H para reanudar."
+    ]
+
+    y = 60
+    for line in lines:
+        if ("MODO CAZADOR" in line or
+                "Objetivo" in line or
+                "Puntaje" in line):
+            color = (255, 255, 0)
+        else:
+            color = (255, 255, 255)
         txt = font.render(line, True, color)
         screen.blit(txt, (60, y))
         y += 28
@@ -311,13 +472,11 @@ def draw_help_panel(screen, font):
 
 # ---------- MODO ESCAPA ----------
 def run_escapa(screen, font):
-    pygame.display.set_caption("Proyecto Laberinto - Modo Escapa")
+    clock = pygame.time.Clock()
 
     render_w = WORLD_W * TILE_SIZE
     render_h = WORLD_H * TILE_SIZE
     render_surface = pygame.Surface((render_w, render_h))
-
-    clock = pygame.time.Clock()
 
     player_animations = load_player_animations("player")
     enemy_animations = load_enemy_animations("enemies")
@@ -325,63 +484,54 @@ def run_escapa(screen, font):
     energy_frames = load_energy_frames()
     trap_img = load_trap_sprite()
 
-    world = None
-    tile_sprites = None
-    player = None
+    # Mundo y estado inicial
+    world = World(WORLD_W, WORLD_H)
+    world.generate()
+    tile_sprites = load_tiles()
+
+    start_x, start_y = world.start
+    player = Player(start_x, start_y, player_animations)
+
     enemies = []
+    for _ in range(NUM_ENEMIES):
+        while True:
+            x = random.randrange(world.width)
+            y = random.randrange(world.height)
+            tile = world.tiles[y][x]
+            if tile.puede_pasar_enemigo():
+                enemies.append(Enemy(x, y, enemy_animations, world))
+                break
+
     traps = []
     trap_cooldown = 0.0
-    respawn_queue = []
+    respawn_queue = []  # tiempos para respawn de enemigos
+
     score = 0
-    start_time = 0.0
     traps_used = 0
     enemies_killed_by_trap = 0
+
     show_help = False
-    elapsed_time = 0.0
+    paused = False
+    pause_start = 0.0
 
-    def reset_run():
-        nonlocal world, tile_sprites, player, enemies
-        nonlocal traps, trap_cooldown, respawn_queue
-        nonlocal score, start_time, traps_used, enemies_killed_by_trap, show_help, elapsed_time
-
-        world = World(WORLD_W, WORLD_H)
-        world.generate()
-        tile_sprites = load_tiles()
-
-        start_x, start_y = world.start
-        player = Player(start_x, start_y, player_animations)
-
-        enemies = []
-        for _ in range(NUM_ENEMIES):
-            while True:
-                x = random.randrange(world.width)
-                y = random.randrange(world.height)
-                tile = world.tiles[y][x]
-                if tile.puede_pasar_enemigo():
-                    enemy = Enemy(x, y, enemy_animations, world)
-                    enemies.append(enemy)
-                    break
-
-        traps = []
-        trap_cooldown = 0.0
-        respawn_queue = []
-        score = 0
-        start_time = pygame.time.get_ticks() / 1000.0
-        traps_used = 0
-        enemies_killed_by_trap = 0
-        show_help = False
-        elapsed_time = 0.0
-
-    reset_run()
+    start_time = pygame.time.get_ticks() / 1000.0
 
     running = True
+    elapsed_time = 0.0   # <-- NUEVO
+
     while running:
         dt = clock.tick(FPS) / 1000.0
         current_time = pygame.time.get_ticks() / 1000.0
 
+        if not paused:
+            elapsed_time = current_time - start_time
+
+
+        # EVENTOS
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                return  # volver al menú
+                pygame.quit()
+                raise SystemExit
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
@@ -396,56 +546,65 @@ def run_escapa(screen, font):
                         traps_used += 1
 
                 elif event.key == pygame.K_h:
-                    show_help = not show_help
+                    if not show_help:
+                        show_help = True
+                        paused = True
+                        pause_start = current_time
+                    else:
+                        show_help = False
+                        paused = False
+                        pause_duration = current_time - pause_start
+                        start_time += pause_duration
 
-        # PAUSA: si está activa, no actualizar nada salvo dibujar
-        if show_help:
+        # Pausa
+        if paused:
             render_surface.fill((0, 0, 0))
             world.draw(render_surface, tile_sprites)
-
             for trap in traps:
-                render_surface.blit(trap_img, (trap.tile_x * TILE_SIZE, trap.tile_y * TILE_SIZE))
-
+                render_surface.blit(trap_img,
+                                    (trap.tile_x * TILE_SIZE,
+                                     trap.tile_y * TILE_SIZE))
             player.draw(render_surface)
-
             for enemy in enemies:
                 enemy.draw(render_surface)
 
-            scaled = pygame.transform.scale(render_surface, (SCREEN_WIDTH, SCREEN_HEIGHT))
+            scaled = pygame.transform.scale(render_surface,
+                                            (SCREEN_WIDTH, SCREEN_HEIGHT))
             screen.blit(scaled, (0, 0))
-            draw_hud(screen, hearts_sprites, energy_frames, player, font, score, elapsed_time)
-            draw_help_panel(screen, font)
+            draw_hud(screen, hearts_sprites, energy_frames, player,
+                     font, score, elapsed_time)
+            draw_help_panel_escapa(screen, font)
             pygame.display.flip()
             continue
 
-
-        elapsed_time += dt
-
+        # cooldown trampas
         if trap_cooldown > 0:
             trap_cooldown -= dt
             if trap_cooldown < 0:
                 trap_cooldown = 0
 
+        # INPUT
         keys = pygame.key.get_pressed()
         mouse_pos = pygame.mouse.get_pos()
-
         scale_x = SCREEN_WIDTH / render_w
         scale_y = SCREEN_HEIGHT / render_h
-
         player.handle_input(keys, mouse_pos, scale_x, scale_y)
+
+        # UPDATE
         player.move(dt, world)
 
         for enemy in enemies:
             enemy.update(dt, world, player)
 
-        # daño por contacto
+        # COLISIÓN JUGADOR–ENEMIGO
         for enemy in enemies:
             if player.hitbox_rect.colliderect(enemy.hitbox_rect):
                 player.take_damage(1)
 
-        # trampas
+        # COLISIÓN ENEMIGO–TRAMPA
         enemies_to_kill = []
         traps_to_remove = []
+
         for enemy in enemies:
             for trap in traps:
                 if enemy.hitbox_rect.colliderect(trap.rect):
@@ -466,7 +625,7 @@ def run_escapa(screen, font):
             if trap in traps:
                 traps.remove(trap)
 
-        # respawn enemigos
+        # REAPARECER ENEMIGOS
         new_respawn_queue = []
         for t_respawn in respawn_queue:
             if current_time >= t_respawn:
@@ -475,88 +634,67 @@ def run_escapa(screen, font):
                     y = random.randrange(world.height)
                     tile = world.tiles[y][x]
                     if tile.puede_pasar_enemigo():
-                        enemy = Enemy(x, y, enemy_animations, world)
-                        enemies.append(enemy)
+                        enemies.append(Enemy(x, y, enemy_animations, world))
                         break
             else:
                 new_respawn_queue.append(t_respawn)
         respawn_queue = new_respawn_queue
 
-        # muerte
+        # MUERTE → derrota
         if player.is_dead():
-            final_score = compute_final_score(elapsed_time, enemies_killed_by_trap, traps_used)
-            show_end_screen(screen, font, final_score, elapsed_time, enemies_killed_by_trap, traps_used, win=False, mode_label="ESCAPA")
-            reset_run()
-            continue
+            final_score = compute_final_score(
+                elapsed_time,
+                enemies_killed_by_trap,
+                traps_used
+            )
+            show_end_screen(screen, font, final_score, elapsed_time,
+                            enemies_killed_by_trap, traps_used, win=False)
+            return
 
-        # victoria
+        # VICTORIA → llegar a la salida
         tile_bajo = world.get_tile_at_rect_center(player.collision_rect)
-        from tiles import Salida
         if isinstance(tile_bajo, Salida):
-            final_score = compute_final_score(elapsed_time, enemies_killed_by_trap, traps_used)
-            show_end_screen(screen, font, final_score, elapsed_time, enemies_killed_by_trap, traps_used, win=True, mode_label="ESCAPA")
-            reset_run()
-            continue
+            final_score = compute_final_score(
+                elapsed_time,
+                enemies_killed_by_trap,
+                traps_used
+            )
+            show_end_screen(screen, font, final_score, elapsed_time,
+                            enemies_killed_by_trap, traps_used, win=True)
+            return
 
-        # DRAW
+        # DIBUJO
         render_surface.fill((0, 0, 0))
         world.draw(render_surface, tile_sprites)
+
+        # trampas
         for trap in traps:
-            render_surface.blit(trap_img, (trap.tile_x * TILE_SIZE, trap.tile_y * TILE_SIZE))
+            render_surface.blit(trap_img,
+                                (trap.tile_x * TILE_SIZE,
+                                 trap.tile_y * TILE_SIZE))
+
         player.draw(render_surface)
+
         for enemy in enemies:
             enemy.draw(render_surface)
 
-        scaled = pygame.transform.scale(render_surface, (SCREEN_WIDTH, SCREEN_HEIGHT))
+        scaled = pygame.transform.scale(render_surface,
+                                        (SCREEN_WIDTH, SCREEN_HEIGHT))
         screen.blit(scaled, (0, 0))
-        draw_hud(screen, hearts_sprites, energy_frames, player, font, score, elapsed_time)
+
+        draw_hud(screen, hearts_sprites, energy_frames, player,
+                 font, score, elapsed_time)
+
         pygame.display.flip()
 
 
 # ---------- MODO CAZADOR ----------
-def show_cazador_results(screen, font, score, elapsed_time, kills, exits):
-    clock = pygame.time.Clock()
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                raise SystemExit
-            if event.type == pygame.KEYDOWN:
-                if event.key in (pygame.K_RETURN, pygame.K_ESCAPE):
-                    running = False
-
-        screen.fill((0, 0, 0))
-        y = 60
-        title = font.render("FIN - MODO CAZADOR", True, (255, 255, 0))
-        screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, y))
-        y += 40
-
-        lines = [
-            f"Tiempo jugado: {elapsed_time:.1f} s",
-            f"Enemigos atrapados: {kills}",
-            f"Enemigos que alcanzaron la salida: {exits}",
-            f"Puntaje final: {score}",
-            "",
-            "ENTER o ESC para volver al menú"
-        ]
-        for line in lines:
-            txt = font.render(line, True, (255, 255, 255))
-            screen.blit(txt, (60, y))
-            y += 30
-
-        pygame.display.flip()
-        clock.tick(60)
-
-
 def run_cazador(screen, font):
-    pygame.display.set_caption("Proyecto Laberinto - Modo Cazador")
+    clock = pygame.time.Clock()
 
     render_w = WORLD_W * TILE_SIZE
     render_h = WORLD_H * TILE_SIZE
     render_surface = pygame.Surface((render_w, render_h))
-
-    clock = pygame.time.Clock()
 
     player_animations = load_player_animations("player")
     enemy_animations = load_enemy_animations("enemies")
@@ -577,47 +715,87 @@ def run_cazador(screen, font):
             y = random.randrange(world.height)
             tile = world.tiles[y][x]
             if tile.puede_pasar_enemigo():
-                enemy = Enemy(x, y, enemy_animations, world)
-                enemies.append(enemy)
+                enemies.append(Enemy(x, y, enemy_animations, world))
                 break
 
     score = 0
     kills = 0
     exits = 0
-    elapsed_time = 0.0
-    TIME_LIMIT = 60.0  # 1 minuto, ajusta si quieres
+
+    TIME_LIMIT = CAZADOR_TIME_LIMIT
+    start_time = pygame.time.get_ticks() / 1000.0
+
+    show_help = False
+    paused = False
+    pause_start = 0.0
 
     running = True
+    elapsed_time = 0.0   # <-- NUEVO
+
     while running:
         dt = clock.tick(FPS) / 1000.0
-        elapsed_time += dt
+        current_time = pygame.time.get_ticks() / 1000.0
 
+        if not paused:
+            elapsed_time = current_time - start_time
+
+
+        # EVENTOS
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                return
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    return
+                pygame.quit()
+                raise SystemExit
 
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return  # volver al menú
+
+                elif event.key == pygame.K_h:
+                    if not show_help:
+                        show_help = True
+                        paused = True
+                        pause_start = current_time
+                    else:
+                        show_help = False
+                        paused = False
+                        pause_duration = current_time - pause_start
+                        start_time += pause_duration
+
+        if paused:
+            render_surface.fill((0, 0, 0))
+            world.draw(render_surface, tile_sprites)
+            player.draw(render_surface)
+            for enemy in enemies:
+                enemy.draw(render_surface)
+
+            scaled = pygame.transform.scale(render_surface,
+                                            (SCREEN_WIDTH, SCREEN_HEIGHT))
+            screen.blit(scaled, (0, 0))
+            draw_hud(screen, hearts_sprites, energy_frames, player,
+                     font, score, elapsed_time)
+            draw_cazador_help_panel(screen, font)
+            pygame.display.flip()
+            continue
+
+        # INPUT
         keys = pygame.key.get_pressed()
         mouse_pos = pygame.mouse.get_pos()
         scale_x = SCREEN_WIDTH / render_w
         scale_y = SCREEN_HEIGHT / render_h
-
         player.handle_input(keys, mouse_pos, scale_x, scale_y)
-        player.move(dt, world)
 
+        # UPDATE
+        player.move(dt, world)
         for enemy in enemies:
             enemy.update_cazador(dt, world, player)
 
-
-        # si jugador toca enemigo -> lo atrapa
-        for enemy in enemies[:]:
+        # JUGADOR atrapa enemigo
+        for enemy in list(enemies):
             if player.hitbox_rect.colliderect(enemy.hitbox_rect):
                 kills += 1
                 score += CAZADOR_KILL_SCORE
                 enemies.remove(enemy)
-                # respawn inmediato
+                # respawn
                 while True:
                     x = random.randrange(world.width)
                     y = random.randrange(world.height)
@@ -626,33 +804,30 @@ def run_cazador(screen, font):
                         enemies.append(Enemy(x, y, enemy_animations, world))
                         break
 
-        # si enemigo llega a salida -> penalización
-        for enemy in enemies:
-            tile_bajo = world.get_tile_at_rect_center(enemy.collision_rect)
-            if isinstance(tile_bajo, Salida):
+        # ENEMIGOS que llegan a la salida
+        for enemy in list(enemies):
+            tile_enemy = world.get_tile_at_rect_center(enemy.collision_rect)
+            if isinstance(tile_enemy, Salida):
                 exits += 1
                 score -= CAZADOR_EXIT_PENALTY
-                if score < 0:
-                    score = 0
-                # respawn enemigo
+                enemies.remove(enemy)
+                # respawn
                 while True:
                     x = random.randrange(world.width)
                     y = random.randrange(world.height)
                     tile = world.tiles[y][x]
                     if tile.puede_pasar_enemigo():
-                        enemy.collision_rect.x = x * TILE_SIZE
-                        enemy.collision_rect.y = y * TILE_SIZE
-                        enemy.px = float(enemy.collision_rect.x)
-                        enemy.py = float(enemy.collision_rect.y)
-                        enemy.hitbox_rect.midbottom = enemy.collision_rect.midbottom
+                        enemies.append(Enemy(x, y, enemy_animations, world))
                         break
 
         # fin por tiempo
         if elapsed_time >= TIME_LIMIT:
+            name = get_player_name(screen, font)
+            save_score(name, "CAZADOR", score, elapsed_time, kills, 0)
             show_cazador_results(screen, font, score, elapsed_time, kills, exits)
             return
 
-        # DRAW
+        # DIBUJO
         render_surface.fill((0, 0, 0))
         world.draw(render_surface, tile_sprites)
         player.draw(render_surface)
@@ -661,45 +836,76 @@ def run_cazador(screen, font):
 
         scaled = pygame.transform.scale(render_surface, (SCREEN_WIDTH, SCREEN_HEIGHT))
         screen.blit(scaled, (0, 0))
-        draw_hud(screen, hearts_sprites, energy_frames, player, font, score, elapsed_time)
+
+        # HUD genérico (vidas, energía, score, tiempo jugado)
+        draw_hud(screen, hearts_sprites, energy_frames, player,
+                 font, score, elapsed_time)
+
+        # TIEMPO RESTANTE específico de MODO CAZADOR
+        time_left = max(0, TIME_LIMIT - elapsed_time)
+        txt_time = font.render(f"Tiempo restante: {time_left:4.1f}s", True, (255, 255, 0))
+        screen.blit(txt_time, (SCREEN_WIDTH - 260, 30))
+
         pygame.display.flip()
 
 
-# ---------- MENÚ PRINCIPAL ----------
-def show_menu(screen, font):
-    clock = pygame.time.Clock()
-    selecting = True
-    option = None
 
-    while selecting:
+# ---------- MENÚ PRINCIPAL ----------
+def show_main_menu(screen, font):
+    clock = pygame.time.Clock()
+    selected = 0  # 0 = Escapa, 1 = Cazador, 2 = Salir
+    options = ["MODO ESCAPA", "MODO CAZADOR", "SALIR"]
+
+    while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                return "QUIT"
+                pygame.quit()
+                raise SystemExit
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    return "QUIT"
-                if event.key == pygame.K_1:
-                    return "ESCAPA"
-                if event.key == pygame.K_2:
-                    return "CAZADOR"
-                if event.key == pygame.K_3:
-                    return "AYUDA"
+                if event.key == pygame.K_UP:
+                    selected = (selected - 1) % len(options)
+                elif event.key == pygame.K_DOWN:
+                    selected = (selected + 1) % len(options)
+                elif event.key == pygame.K_RETURN:
+                    return selected
 
         screen.fill((0, 0, 0))
-        title = font.render("PROYECTO 2 - ESCAPA DEL LABERINTO", True, (255, 255, 0))
-        screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 80))
 
-        l1 = font.render("1 - Modo Escapa", True, (255, 255, 255))
-        l2 = font.render("2 - Modo Cazador", True, (255, 255, 255))
-        l3 = font.render("3 - Controles", True, (255, 255, 255))
-        l4 = font.render("ESC - Salir", True, (200, 200, 200))
-        l5 = font.render("Más adelante: música y opciones aquí", True, (150, 150, 255))
+        title = font.render("ESCAPA DEL LABERINTO", True, (255, 255, 0))
+        screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 40))
 
-        screen.blit(l1, (100, 180))
-        screen.blit(l2, (100, 220))
-        screen.blit(l3, (100, 260))
-        screen.blit(l4, (100, 320))
-        screen.blit(l5, (100, 360))
+        y = 120
+        for i, txt in enumerate(options):
+            color = (255, 255, 255)
+            if i == selected:
+                color = (0, 255, 0)
+            rtxt = font.render(txt, True, color)
+            screen.blit(rtxt, (SCREEN_WIDTH // 2 - rtxt.get_width() // 2, y))
+            y += 40
+
+        # info de modos
+        y += 10
+        lines = [
+            "Controles generales: W/A/S/D para moverse, SHIFT para correr.",
+            "ESC para salir, H para ver/ocultar la ayuda en cada modo.",
+            "",
+            "MODO ESCAPA:",
+            "- Objetivo: llegar a la salida sin morir.",
+            "- Los cazadores te persiguen.",
+            "- Puedes colocar trampas (ESPACIO) para eliminarlos.",
+            "",
+            "MODO CAZADOR:",
+            "- Objetivo: en tiempo límite atrapar el máximo de enemigos.",
+            "- Los enemigos huyen de ti y buscan la salida.",
+            "- Si llegan a la salida pierdes puntos; si los cazas, ganas puntos."
+        ]
+        for line in lines:
+            col = (255, 255, 255)
+            if "ESCAPA" in line or "CAZADOR" in line:
+                col = (255, 255, 0)
+            t = font.render(line, True, col)
+            screen.blit(t, (40, y))
+            y += 24
 
         pygame.display.flip()
         clock.tick(60)
@@ -709,19 +915,17 @@ def show_menu(screen, font):
 def main():
     pygame.init()
     screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+    pygame.display.set_caption("Proyecto Laberinto")
     font = pygame.font.SysFont(None, 24)
 
-    running = True
-    while running:
-        mode = show_menu(screen, font)
-        if mode == "QUIT":
-            running = False
-        elif mode == "ESCAPA":
+    while True:
+        opcion = show_main_menu(screen, font)
+        if opcion == 0:
             run_escapa(screen, font)
-        elif mode == "CAZADOR":
+        elif opcion == 1:
             run_cazador(screen, font)
-        elif mode == "AYUDA":
-            draw_help_panel(screen, font)
+        else:
+            break
 
     pygame.quit()
 
