@@ -20,46 +20,63 @@ git clone [TU ENLACE DE GITHUB]
 
 cd [NOMBRE DE LA CARPETA DEL PROYECTO]
 
-### Instalar Librería
+### 2 Instalar Librería
 Instala Pygame usando pip: pip install pygame
 
 ### 3. Ejecutar el Juego
-Inicia el juego desde la línea de comandos ejecutando el archivo principal:
+Inicia el juego desde la línea de comandos ejecutando el archivo principal: Main.py
 
-### 4🕹️ Guía de Controles y Mecánicas
+---
+
+## 1🕹️ Guía de Controles y Mecánicas
 El juego utiliza un sistema de movimiento basado en tiles con física de colisiones deslizantes.
 
-## Controles Generales
-Acción,Tecla,Efecto
-Movimiento,"W, A, S, D o Flechas",Desplazamiento del personaje.
-Correr/Sprint,SHIFT (mantener),"Aumenta la velocidad, pero consume energía."
-Ayuda,H,Muestra/Oculta la pantalla de ayuda con las reglas.
-Salir,ESC,Sale del juego.
+### Controles Generales
 
-### 5 Tipos de Terreno
-## El mapa se compone de cuatro tipos de casillas:
-Terreno,Jugador,Enemigos
-Camino,✅ Pasa,✅ Pasa
-Muros,❌ Bloquea,❌ Bloquea
-Túneles,✅ Pasa,❌ Bloquea
-Lianas,❌ Bloquea,✅ Pasa
+| Accíon | Tecla | Efecto |
+| :--- | :---: | ---: |
+| Movimiento | W, A, S, D o Flechas dirrecionales | Desplazamiento del personaje |
+| Correr/Sprint | SHIFT (mantener) | Aumenta la velocidad, pero consume energía |
+| Ayuda | H | Muestra/Oculta la pantalla de ayuda con las reglas |
+| Salir | ESC | Sale del juego |
 
-### 6 Mecánica de Modos
+---
 
-Modo,Objetivo Principal,Mecánica Única
-Escapa,Llegar a la Salida sin morir.,El jugador puede colocar Trampas (ESPACIO) para eliminar a los cazadores temporalmente.
-Cazador,Atrapar al mayor número de enemigos.,Los enemigos huyen del jugador y buscan la salida. Se gana por atrapar y se pierden puntos por cada enemigo que escapa.
+## 2 Tipos de Terreno
+### El mapa se compone de cuatro tipos de casillas:
 
-### 7 ⚙️ Estructura del Código
+| Terreno | Jugador | Enemigos |
+| :--- | :---: | ---: |
+| Camino | ✅ Pasa | ✅ Pasa |
+| Túneles | ✅ Pasa | ❌ Bloquea |
+| Lianas | ❌ Bloquea | ✅ Pasa |
+| Muros | ❌ Bloquea | ❌ Bloquea |
 
-## El proyecto utiliza un diseño Modular basado en la Programación Orientada a Objetos (POO).
+---
 
-Archivo,Responsabilidad Principal,Algoritmos Clave
-main.py,"Bucle de juego, UI, gestión de modos y score.",
-world.py,"Generación del laberinto, mapa (tiles) y colisiones.",DFS (Depth-First Search) para generar laberinto.
-tiles.py,"Definición de clases de terreno (Casilla, Muro, Tunel, Liana).",Herencia y Polimorfismo en las reglas de paso.
-enemy.py,Lógica de la IA (Patrulla/Persecución/Huida).,Álgebra Vectorial para el movimiento en tiempo real.
-player.py,"Física de movimiento, vida, energía y manejo de input.",
-constants.py,"Almacenamiento de variables globales de configuración (velocidad, tamaño de mapa, etc.).",
+## 3 Mecánica de Modos
 
-# Para un análisis técnico completo, incluyendo el Diagrama de Clases UML, consulte el documento adjunto: Documentación de Proyecto Escapa del Laberinto y Cazador.pdf
+| Modo | Objetivo Principal | Mecánica Única |
+| :--- | :---: | ---: |
+| Escapa | Llegar a la Salida sin morir | El jugador puede colocar Trampas (ESPACIO) para eliminar a los cazadores temporalmente |
+| Cazador | Atrapar al mayor número de enemigos | Los enemigos huyen del jugador y buscan la salida. Se gana por atrapar y se pierden puntos por cada enemigo que escapa |
+
+---
+
+## 4 ⚙️ Estructura del Código
+
+### El proyecto utiliza un diseño Modular basado en la Programación Orientada a Objetos (POO).
+
+| Archivo | Responsabilidad Principal | Algoritmos Clave |
+| :--- | :---: | ---: |
+| main.py.py | Bucle de juego | UI, gestión de modos y score |
+| world.py | Generación del laberinto, mapa (tiles) y colisiones. | DFS (Depth-First Search) para generar laberinto |
+| tiles.py | Definición de clases de terreno (Casilla, Muro, Tunel, Liana) | Herencia y Polimorfismo en las reglas de paso |
+| enemy.py | Lógica de la IA (Patrulla/Persecución/Huida) | Álgebra Vectorial para el movimiento en tiempo real |
+| player.py | Física de movimiento, vida, energía y manejo de input | 
+| constants.py | Almacenamiento de variables globales de configuración (velocidad, tamaño de mapa, etc. | 
+
+---
+
+# Para un análisis técnico completo, incluyendo el Diagrama de Clases UML, consulte el documento adjunto: 
+Documentación de Proyecto Escapa del Laberinto y Cazador.pdf
