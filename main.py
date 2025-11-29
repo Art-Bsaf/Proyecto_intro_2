@@ -25,7 +25,7 @@ class Trap:
 # ---------- GESTIÓN DE SCORES ----------
 def load_scores(mode=None):
     """Si mode = 'ESCAPA' o 'CAZADOR', devuelve solo esos.
-       Si mode = None → devuelve todos (pero ya no lo usaremos)."""
+       Si mode = None → devuelve todos los registros."""
     scores = []
     if not os.path.exists(SCORES_FILE):
         return scores
@@ -36,13 +36,13 @@ def load_scores(mode=None):
             if len(parts) != 6:
                 continue
 
-            name, m, score, time_s, kills, traps_used = parts
+            name, m, score_str, time_str, kills_str, traps_str = parts
             try:
-                score = int(score)
-                time_s = float(time_s)
-                kills = int(kills)
-                traps_used = int(traps_used)
-            except:
+                score = int(score_str)
+                time_s = float(time_str)
+                kills = int(kills_str)
+                traps = int(traps_str)
+            except ValueError:
                 continue
 
             if mode is None or m == mode:
@@ -52,18 +52,18 @@ def load_scores(mode=None):
                     "score": score,
                     "time": time_s,
                     "kills": kills,
-                    "traps": traps_used
+                    "traps": traps
                 })
 
     return scores
 
 
 def save_score(name, mode, score, elapsed_time, kills, traps_used):
-    # cargar solo scores del modo indicado
-    scores = load_scores(mode)
+    # 1) Cargar solo scores del modo actual
+    mode_scores = load_scores(mode)
 
-    # agregar el nuevo
-    scores.append({
+    # 2) Agregar el nuevo
+    mode_scores.append({
         "name": name,
         "mode": mode,
         "score": score,
@@ -72,21 +72,20 @@ def save_score(name, mode, score, elapsed_time, kills, traps_used):
         "traps": traps_used
     })
 
-    # ordenar → top 5 del modo
-    scores.sort(key=lambda s: s["score"], reverse=True)
-    scores = scores[:5]
+    # 3) Top 5 interno por modo
+    mode_scores.sort(key=lambda s: s["score"], reverse=True)
+    mode_scores = mode_scores[:5]
 
-    # PERO ahora debemos guardar TODOS los modos, no solo este.
-    # cargamos todos, filtramos los del otro modo y luego reconstruimos.
+    # 4) Cargar todos los scores existentes
     all_scores = load_scores(None)
 
-    # limpiamos los del modo actual
+    # 5) Quitar los viejos de este modo
     all_scores = [s for s in all_scores if s["mode"] != mode]
 
-    # agregamos el top5 del modo actual
-    all_scores.extend(scores)
+    # 6) Agregar el nuevo top5 del modo actual
+    all_scores.extend(mode_scores)
 
-    # ordenar archivo final (por modo y por score)
+    # 7) Guardar archivo completo
     with open(SCORES_FILE, "w", encoding="utf-8") as f:
         for s in all_scores:
             f.write(f"{s['name']};{s['mode']};{s['score']};"
@@ -254,6 +253,86 @@ def show_cazador_results(screen, font, score, elapsed_time, kills, exits):
             screen.blit(txt, (60, y))
             y += 24
 
+        info = font.render("ENTER o ESC para volver al menú", True, (150, 150, 255))
+        screen.blit(info,
+                    (SCREEN_WIDTH // 2 - info.get_width() // 2,
+                     SCREEN_HEIGHT - 40))
+
+        pygame.display.flip()
+        clock.tick(60)
+
+def show_scores_screen(screen, font):
+    clock = pygame.time.Clock()
+
+    escapa_scores = load_scores("ESCAPA")
+    cazador_scores = load_scores("CAZADOR")
+
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                raise SystemExit
+            if event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_RETURN, pygame.K_ESCAPE):
+                    running = False
+
+        screen.fill((0, 0, 0))
+
+        # ----------------------
+        # TÍTULO GENERAL
+        # ----------------------
+        title = font.render("TOP 5 - ESCAPA y CAZADOR", True, (255, 255, 0))
+        screen.blit(title, (SCREEN_WIDTH // 2 - title.get_width() // 2, 20))
+
+        # ==============================
+        #      SECCIÓN ESCAPA (ARRIBA)
+        # ==============================
+        y = 70
+        txt_e = font.render("MODO ESCAPA (Huir)", True, (0, 255, 0))
+        screen.blit(txt_e, (40, y))
+        y += 35
+
+        if not escapa_scores:
+            screen.blit(font.render("Sin registros", True, (200, 200, 200)), (40, y))
+            y += 30
+        else:
+            for i, s in enumerate(escapa_scores):
+                line = (
+                    f"{i+1}. {s['name']}  | Score: {s['score']}  "
+                    f"| Tiempo: {s['time']:.1f}s  | K: {s['kills']}  "
+                    f"| Trampas: {s['traps']}"
+                )
+                txt = font.render(line, True, (220, 220, 220))
+                screen.blit(txt, (40, y))
+                y += 28
+
+        # espacio entre bloques
+        y += 40
+
+        # ==============================
+        #      SECCIÓN CAZADOR (ABAJO)
+        # ==============================
+        txt_c = font.render("MODO CAZADOR", True, (255, 120, 0))
+        screen.blit(txt_c, (40, y))
+        y += 35
+
+        if not cazador_scores:
+            screen.blit(font.render("Sin registros", True, (200, 200, 200)), (40, y))
+            y += 30
+        else:
+            for i, s in enumerate(cazador_scores):
+                line = (
+                    f"{i+1}. {s['name']}  | Score: {s['score']}  "
+                    f"| Tiempo: {s['time']:.1f}s  | Kills: {s['kills']}"
+                )
+                txt = font.render(line, True, (220, 220, 220))
+                screen.blit(txt, (40, y))
+                y += 28
+
+        # ----------------------
+        # Instrucción para salir
+        # ----------------------
         info = font.render("ENTER o ESC para volver al menú", True, (150, 150, 255))
         screen.blit(info,
                     (SCREEN_WIDTH // 2 - info.get_width() // 2,
@@ -590,16 +669,32 @@ def run_escapa(screen, font):
         scale_y = SCREEN_HEIGHT / render_h
         player.handle_input(keys, mouse_pos, scale_x, scale_y)
 
-        # UPDATE
+        # --------- DIFICULTAD ESCAPA (POR TIEMPO) ---------
+        # Cada 20s sube una "etapa" de dificultad, hasta 3
+        DIFF_STEP_SECONDS = 20.0
+        diff_stage = int(elapsed_time // DIFF_STEP_SECONDS)
+        if diff_stage > 3:
+            diff_stage = 3
+
+        # multiplicador de velocidad: 1.0, 1.18, 1.36, 1.54
+        enemy_speed_mult = 1.0 + 0.18 * diff_stage
+
+        # daño base = 1 (medio corazón)
+        # luego 2,3,4 → hasta 2 corazones por golpe
+        hit_damage = 1 + diff_stage
+
+
         player.move(dt, world)
 
         for enemy in enemies:
+            enemy.speed = ENEMY_SPEED * enemy_speed_mult
             enemy.update(dt, world, player)
+
 
         # COLISIÓN JUGADOR–ENEMIGO
         for enemy in enemies:
             if player.hitbox_rect.colliderect(enemy.hitbox_rect):
-                player.take_damage(1)
+                player.take_damage(hit_damage)
 
         # COLISIÓN ENEMIGO–TRAMPA
         enemies_to_kill = []
@@ -721,6 +816,8 @@ def run_cazador(screen, font):
     score = 0
     kills = 0
     exits = 0
+    difficulty_level = 0 
+
 
     TIME_LIMIT = CAZADOR_TIME_LIMIT
     start_time = pygame.time.get_ticks() / 1000.0
@@ -738,6 +835,11 @@ def run_cazador(screen, font):
 
         if not paused:
             elapsed_time = current_time - start_time
+
+        # --------- DIFICULTAD CAZADOR (POR KILLS) ---------
+        # Por cada kill sube un 12% la velocidad de los enemigos
+        enemy_speed_mult = 1.0 + 0.12 * difficulty_level
+
 
 
         # EVENTOS
@@ -787,14 +889,18 @@ def run_cazador(screen, font):
         # UPDATE
         player.move(dt, world)
         for enemy in enemies:
+            enemy.speed = ENEMY_SPEED * enemy_speed_mult
             enemy.update_cazador(dt, world, player)
+
 
         # JUGADOR atrapa enemigo
         for enemy in list(enemies):
             if player.hitbox_rect.colliderect(enemy.hitbox_rect):
                 kills += 1
                 score += CAZADOR_KILL_SCORE
+                difficulty_level += 1
                 enemies.remove(enemy)
+
                 # respawn
                 while True:
                     x = random.randrange(world.width)
@@ -853,8 +959,9 @@ def run_cazador(screen, font):
 # ---------- MENÚ PRINCIPAL ----------
 def show_main_menu(screen, font):
     clock = pygame.time.Clock()
-    selected = 0  # 0 = Escapa, 1 = Cazador, 2 = Salir
-    options = ["MODO ESCAPA", "MODO CAZADOR", "SALIR"]
+    selected = 0  # 0 = Escapa, 1 = Cazador, 2 = Ver Top 5, 3 = Salir
+    options = ["MODO ESCAPA", "MODO CAZADOR", "VER TOP 5", "SALIR"]
+
 
     while True:
         for event in pygame.event.get():
@@ -924,8 +1031,11 @@ def main():
             run_escapa(screen, font)
         elif opcion == 1:
             run_cazador(screen, font)
+        elif opcion == 2:
+            show_scores_screen(screen, font)
         else:
             break
+
 
     pygame.quit()
 
